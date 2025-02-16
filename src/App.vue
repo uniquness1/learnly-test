@@ -53,6 +53,7 @@
               class="min-h-[60px] bg-white rounded-xl border-2 border-dashed border-gray-300 p-2"
               @dragover.prevent
               @drop.prevent="onDrop"
+              @touchend.prevent="onTouchEnd"
             >
               <div v-if="selectedTerm" class="inline-block">
                 <div class="bg-purple-100 rounded-lg px-4 py-2">
@@ -68,7 +69,8 @@
               :key="term"
               draggable="true"
               @dragstart="onDragStart(term)"
-              class="bg-gray-900 text-white px-4 py-3 rounded-xl text-center cursor-move"
+              @touchstart="onTouchStart(term, $event)"
+              class="bg-gray-900 text-white px-4 py-3 rounded-xl text-center cursor-move select-none active:opacity-60"
             >
               {{ term }}
             </div>
@@ -117,7 +119,7 @@
                     />
                   </svg>
                 </span>
-                <span class="font-medium">{{ isCorrect ? 'Right!' : 'Wrong Answer!' }}</span>
+                <span class="font-medium">{{ isCorrect ? 'Right!' : 'Think again!' }}</span>
               </div>
 
               <div v-if="!isCorrect">
@@ -196,17 +198,22 @@ const retryAttempts = ref(1)
 const failedQuestions = ref([])
 const showResults = ref(false)
 const currentTime = ref(new Date())
+
+let timer
+
+onMounted(() => {
+  updateTime()
+  timer = setInterval(updateTime, 1000)
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
+
 const updateTime = () => {
   currentTime.value = new Date()
 }
 
-let timer
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
-})
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
-})
 const resetQuestion = () => {
   selectedOption.value = null
   selectedTerm.value = null
@@ -228,6 +235,7 @@ const handleNextQuestion = () => {
     questionIndex: quizStore.currentQuestionIndex,
     question: quizStore.currentQuestion.question,
   })
+
   quizStore.reduceTotalPoints(quizStore.currentQuestion.points)
 
   if (!quizStore.isLastQuestion) {
@@ -248,6 +256,24 @@ const selectOption = (option, index) => {
 
 const onDragStart = (term) => {
   selectedTerm.value = term
+}
+
+const onTouchStart = (term, event) => {
+  event.preventDefault()
+  selectedTerm.value = term
+  event.target.style.opacity = '0.6'
+}
+
+const onTouchEnd = (event) => {
+  event.preventDefault()
+
+  document.querySelectorAll('.cursor-move').forEach((el) => {
+    el.style.opacity = '1'
+  })
+
+  if (selectedTerm.value) {
+    validateAnswer()
+  }
 }
 
 const onDrop = () => {
@@ -285,8 +311,9 @@ const validateAnswer = (optionIndex) => {
           ? `\nYou have ${retryAttempts.value} more ${
               retryAttempts.value === 1 ? 'try' : 'tries'
             } left.`
-          : 'Moving to next question.'
+          : 'Moving to next question...'
       }`
+
       if (retryAttempts.value === 0) {
         setTimeout(() => {
           handleNextQuestion()
@@ -295,6 +322,7 @@ const validateAnswer = (optionIndex) => {
     }
   } else {
     isCorrect.value = selectedTerm.value === currentQuestion.correctTerm
+
     if (isCorrect.value) {
       quizStore.addPoints(currentQuestion.points)
       feedbackMessage.value = currentQuestion.feedback.correct
@@ -315,8 +343,9 @@ const validateAnswer = (optionIndex) => {
           ? `\nYou have ${retryAttempts.value} more ${
               retryAttempts.value === 1 ? 'try' : 'tries'
             } left.`
-          : 'Moving to next question...'
+          : 'Moving to next question.'
       }`
+
       if (retryAttempts.value === 0) {
         setTimeout(() => {
           handleNextQuestion()
